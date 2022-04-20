@@ -1,28 +1,44 @@
 package otus.homework.coroutines
 
-import retrofit2.Call
-import retrofit2.Callback
-import retrofit2.Response
+import kotlinx.coroutines.*
+import java.net.SocketTimeoutException
+import kotlin.coroutines.CoroutineContext
 
 class CatsPresenter(
     private val catsService: CatsService
 ) {
 
     private var _catsView: ICatsView? = null
+    private val scope = PresenterScope()
+    private lateinit var job: Job
 
     fun onInitComplete() {
-        catsService.getCatFact().enqueue(object : Callback<Fact> {
+        job = scope.launch(CoroutineExceptionHandler { coroutineContext, throwable ->
+            CrashMonitor.trackWarning()
+            _catsView?.showToast(throwable.message ?: "Exception")
+        }) {
+            try {
+                val resDefFact = async { catsService.getCatFact() }
+                val resDefImage = async { catsService.getCatImage("https://aws.random.cat/meow") }
 
-            override fun onResponse(call: Call<Fact>, response: Response<Fact>) {
-                if (response.isSuccessful && response.body() != null) {
-                    _catsView?.populate(response.body()!!)
+                val responseFact = resDefFact.await()
+                val responseImage = resDefImage.await()
+
+                if (responseFact.isSuccessful) {
+                    _catsView?.populate(CatData(responseFact.body()!!, responseImage.body()!!))
+                } else {
+                    CrashMonitor.trackWarning()
                 }
+
+            } catch (e: Exception) {
+                when (e) {
+                    is SocketTimeoutException -> _catsView?.showToast("Не удалось получить ответ от сервера")
+                    else -> _catsView?.showToast(e.message ?: "Exception")
+                }
+
             }
 
-            override fun onFailure(call: Call<Fact>, t: Throwable) {
-                CrashMonitor.trackWarning()
-            }
-        })
+        }
     }
 
     fun attachView(catsView: ICatsView) {
@@ -31,5 +47,11 @@ class CatsPresenter(
 
     fun detachView() {
         _catsView = null
+        job.cancel()
+    }
+
+    class PresenterScope : CoroutineScope {
+        override val coroutineContext: CoroutineContext
+            get() = SupervisorJob() + Dispatchers.Main + CoroutineName("CatsCoroutine")
     }
 }

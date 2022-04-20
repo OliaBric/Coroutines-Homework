@@ -18,7 +18,12 @@ class MainActivity : AppCompatActivity() {
         catsPresenter = CatsPresenter(diContainer.service)
         view.presenter = catsPresenter
         catsPresenter.attachView(view)
+
+    }
+
+    override fun onResume() {
         catsPresenter.onInitComplete()
+        super.onResume()
     }
 
     override fun onStop() {
