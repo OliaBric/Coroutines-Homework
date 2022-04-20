@@ -1,6 +1,7 @@
 package otus.homework.coroutines
 
 import kotlinx.coroutines.*
+import otus.homework.coroutines.remote.CatsService
 import java.net.SocketTimeoutException
 import kotlin.coroutines.CoroutineContext
 
