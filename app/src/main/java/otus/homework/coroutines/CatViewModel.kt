@@ -1,5 +1,6 @@
 package otus.homework.coroutines
 
+import androidx.lifecycle.MutableLiveData
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import kotlinx.coroutines.CoroutineExceptionHandler
@@ -10,18 +11,13 @@ import otus.homework.coroutines.remote.CatsService
 class CatViewModel : ViewModel() {
 
     private lateinit var _catsService: CatsService
-    private var _catsView: ICatsView? = null
 
-    fun attachView(catsService: CatsService, catsView: ICatsView) {
+    val currentName: MutableLiveData<Result> by lazy {
+        MutableLiveData<Result>()
+    }
+
+    fun getData(catsService: CatsService) {
         _catsService = catsService
-        _catsView = catsView
-    }
-
-    fun detachView() {
-        _catsView = null
-    }
-
-    fun getData(){
         viewModelScope.launch(CoroutineExceptionHandler { _, _ ->
             CrashMonitor.trackWarning()
         }) {
@@ -32,15 +28,17 @@ class CatViewModel : ViewModel() {
             val responseImage = resDefImage.await()
 
             if (responseFact.isSuccessful) {
-                _catsView?.populate(CatData(responseFact.body()!!, responseImage.body()!!))
+                currentName.value =
+                    Result.Success(CatData(responseFact.body()!!, responseImage.body()!!))
             } else {
+                currentName.value = Result.Error("Не удалось получить ответ от сервера")
                 CrashMonitor.trackWarning()
             }
         }
     }
 
-    sealed class Result{
-        class Success<T>: Result()
-        class Error :Result()
+    sealed class Result {
+        class Success(val catData: CatData) : Result()
+        class Error(val message: String) : Result()
     }
 }
